@@ -1,0 +1,46 @@
+# systemd unit for Unicorn Academy (runs on the same Proxmox LXC as the Family Dashboard).
+#
+# Install (see deploy/INSTALL.md for the full steps):
+#   cp deploy/unicorn-academy.service /etc/systemd/system/
+#   systemctl daemon-reload
+#   systemctl enable --now unicorn-academy
+#
+# Logs:     journalctl -u unicorn-academy -f
+# Restart:  systemctl restart unicorn-academy
+
+[Unit]
+Description=Unicorn Academy (4th grade math practice)
+Documentation=file:///opt/unicorn-academy/deploy/INSTALL.md
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=unicorn
+Group=unicorn
+WorkingDirectory=/opt/unicorn-academy
+# If `which node` prints a different path on your LXC, change it here.
+ExecStart=/usr/bin/node server/index.js
+Environment=NODE_ENV=production
+
+Restart=always
+RestartSec=5
+
+# ---- Hardening: the app can only write inside its own folder ----
+# (data/ holds the progress database.)
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/unicorn-academy
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

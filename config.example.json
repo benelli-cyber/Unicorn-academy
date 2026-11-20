@@ -1,0 +1,5 @@
+{
+  "port": 8081,
+  "anthropicApiKey": "",
+  "model": "claude-opus-5-5"
+}
