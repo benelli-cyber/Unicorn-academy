@@ -13,8 +13,17 @@ Replace `192.168.1.50` with your LXC's address everywhere.
 ## 1. Install
 
 Node.js 22 and git are already on the LXC from the dashboard install, so there
-is nothing new to install. Open the container's console (or SSH in) and run
-these as root.
+is nothing new to install.
+
+**Run everything below as root.** Open the container's **Console** in the
+Proxmox web UI (it logs you in as root), or on the Proxmox host run
+`pct enter <container-id>`. The prompt ends in `#` when you're root. If you
+SSH in as a normal user (prompt ends in `$`), `useradd` isn't found and
+writing to `/opt` is refused.
+
+These steps use `runuser -u unicorn -- ...` to run a command as the app's
+user. It's like `sudo -u unicorn`, but works in containers where `sudo`
+fails with "error initializing audit plugin sudoers_audit".
 
 ### 1.1 Create a user and download the app
 
@@ -36,7 +45,7 @@ access to just this repo, as the password.
 ### 1.2 Install the app's libraries
 
 ```bash
-cd /opt/unicorn-academy && sudo -u unicorn npm ci --omit=dev
+cd /opt/unicorn-academy && runuser -u unicorn -- npm ci --omit=dev
 ```
 
 The SQLite module may compile, which takes a few minutes. If it stops with
@@ -46,7 +55,7 @@ for the dashboard.
 ### 1.3 Create the config file
 
 ```bash
-sudo -u unicorn cp /opt/unicorn-academy/config.example.json /opt/unicorn-academy/config.json
+runuser -u unicorn -- cp /opt/unicorn-academy/config.example.json /opt/unicorn-academy/config.json
 ```
 ```bash
 chmod 600 /opt/unicorn-academy/config.json
@@ -80,7 +89,7 @@ internet access to reach `api.anthropic.com`, only for reading photos.
 Do a quick test run (stop it with Ctrl+C):
 
 ```bash
-cd /opt/unicorn-academy && sudo -u unicorn node server/index.js
+cd /opt/unicorn-academy && runuser -u unicorn -- node server/index.js
 ```
 
 It prints `Unicorn Academy on http://localhost:8081/ (homework photos on, ...)`.
@@ -151,7 +160,7 @@ asks "Who's riding today?" on a new device, and the home screen shows a
 When there's a new version on GitHub:
 
 ```bash
-cd /opt/unicorn-academy && sudo -u unicorn git pull && sudo -u unicorn npm ci --omit=dev && systemctl restart unicorn-academy
+cd /opt/unicorn-academy && runuser -u unicorn -- git pull && runuser -u unicorn -- npm ci --omit=dev && systemctl restart unicorn-academy
 ```
 
 Open pages pick up the new version the next time they're reloaded.
