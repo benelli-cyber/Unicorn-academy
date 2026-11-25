@@ -279,6 +279,14 @@ svg.bm { width: 100%; max-width: 380px; height: auto; display: block; }
 label.f { display: flex; flex-direction: column; gap: 6px; font-weight: 700; }
 .input { min-height: 54px; border-radius: 14px; border: 2px solid var(--line); background: var(--card); padding: 8px 14px; font-size: 20px; width: 100%; }
 .pinbox { font-family: var(--display); font-size: 40px; letter-spacing: .4em; text-align: center; }
+.study { background: var(--card); border: 3px solid var(--lav); border-radius: 22px; padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; }
+.study.done { border-color: var(--meadow); background: var(--meadow-soft); }
+.study h2 { font-size: 26px; }
+.study .big { font-family: var(--display); font-weight: 800; font-size: 32px; font-variant-numeric: tabular-nums; color: var(--lav); }
+.study .meter i { background: var(--lav); }
+.pill.study-pill { color: var(--lav); }
+.pill.study-pill.paused { color: var(--ink-soft); }
+.pill.study-pill .ico { width: 20px; height: 20px; }
 .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .kpi { background: var(--card); border: 2px solid var(--line); border-radius: 16px; padding: 12px 14px; }
 .kpi b { font-family: var(--display); font-size: 30px; display: block; line-height: 1.1; font-variant-numeric: tabular-nums; }
@@ -387,6 +395,7 @@ const ICON = {
   flame: '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c1 4 6 6 6 12a6 6 0 0 1-12 0c0-3 1.5-5 3-6 0 2 1 3 2 3 0-3-1-6 1-9z" fill="#F07A3A"/><path d="M12 13c1 2 3 3 3 5a3 3 0 0 1-6 0c0-1.5 1-2.5 3-5z" fill="#FFC94A"/></svg>',
   num: '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="1.5" y="4" width="21" height="16" rx="3" fill="currentColor"/><text x="12" y="16.2" text-anchor="middle" font-family="Baloo 2, sans-serif" font-weight="800" font-size="10" fill="#fff">1,234</text></svg>',
   grid: '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="1.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M15 5v14" stroke="currentColor" stroke-width="2.2"/><path d="M5.2 5v14M8.4 5v14M11.6 5v14M18.4 5v14M2 8.5h20M2 12h20M2 15.5h20" stroke="currentColor" stroke-width=".8" opacity=".6"/></svg>',
+  clock: '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8.5" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M12 8.5V13l3 2" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M9.5 2.5h5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>',
   check: '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5l5 5L20 6.5" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
 };
 const shoeSvg = on => `<svg class="${on ? "on" : ""}" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3v8a7 7 0 0 0 14 0V3" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg>`;
@@ -400,7 +409,7 @@ function fresh() {
     custom: {}, outfits: [null, null, null],
     owned: ["body_white", "mane_pink", "scene_meadow"],
     coins: 0, streak: 0, bestStreak: 0, lastDay: null,
-    stats: { problems: 0, correct: 0, rides: 0, perfect: 0, lessons: 0, gallops: 0, facts: 0, workshop: 0, homework: 0, days: 0, treats: 0, bought: 0 },
+    stats: { problems: 0, correct: 0, rides: 0, perfect: 0, lessons: 0, gallops: 0, facts: 0, workshop: 0, homework: 0, days: 0, treats: 0, bought: 0, studyDone: 0 },
     skills: {}, facts: {}, placement: null, badges: {}, log: {}, mistakes: [], homework: [], focus: null,
     foals: [
       { name: "Pip", coat: "#F6E7CF", mane: "#8A5A3B", lessons: 0 },
@@ -413,6 +422,8 @@ function fresh() {
       note: "Extra practice reading and writing numbers in different forms. Multiplying with tens and hundreds (70 × 10, 20 × 30). Area models: base ten pieces, then graph paper, then open area models with no unit squares. Division stays close to the basic facts, with some remainders.",
       status: { pvr: "now", pvf: "now", m10: "now", fp: "now", m1d: "now", mfacts: "now", dfacts: "review", div: "review", wpc: "review", wpm: "review", wpr: "review", m2d: "off" }
     },
+    // Study time set by a grown-up: a daily goal and/or a one-off session (minutes of practice).
+    study: { daily: 0, lockShop: false, session: null, dailyDone: null, history: [] },
     settings: { sound: true, race: true, speak: true, divNear: true, pin: null }
   };
 }
@@ -444,6 +455,7 @@ function cacheLocal() { if (server.rider) try { localStorage.setItem(STORE_KEY +
 function trim() {
   S.mistakes = S.mistakes.slice(-40);
   S.homework = S.homework.slice(-6);
+  S.study.history = S.study.history.slice(-30);
   const keys = Object.keys(S.log).sort();
   for (const k of keys.slice(0, Math.max(0, keys.length - 90))) delete S.log[k];
 }
@@ -510,8 +522,80 @@ function recordMistake(p, given) {
   S.mistakes.push({ d: today(), skill: p.skill, q: plain(p.text).slice(0, 220), given, ans: ansText(p) });
 }
 // Let the timer count only while she's in an activity and the page is visible.
-let tracking = false;
-setInterval(() => { if (tracking && !document.hidden && S.profile) { logDay({ sec: 10 }); } }, 10000);
+// Time on the app, counted once a second. Each day's log keeps:
+//   app = seconds with the app open and in use (not the Grown-ups area)
+//   sec = seconds spent practicing (activity screens set tracking = true)
+// Counting stops after 2 minutes without a tap or key, and while the app is hidden.
+let tracking = false, lastInput = Date.now(), unsavedSec = 0;
+const IDLE_MS = 2 * 60 * 1000;
+for (const ev of ["pointerdown", "keydown", "touchstart"]) document.addEventListener(ev, () => { lastInput = Date.now(); }, { passive: true, capture: true });
+document.addEventListener("visibilitychange", () => { if (document.hidden && unsavedSec && S.profile) { unsavedSec = 0; save(); } });
+const inUse = () => !!S.profile && !document.hidden && Date.now() - lastInput < IDLE_MS && current !== "parent";
+setInterval(() => {
+  if (inUse()) {
+    logDay(tracking ? { app: 1, sec: 1 } : { app: 1 });
+    if (tracking) studyTick();
+    if (++unsavedSec >= 30) { unsavedSec = 0; save(); }
+  }
+  paintStudy();
+}, 1000);
+const minutesText = m => `${m} minute${m === 1 ? "" : "s"}`;
+const mmss = sec => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, "0")}`;
+const mins = sec => { const m = Math.round(sec / 60); return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`; };
+
+/* ---------- study time ---------- */
+// The goal that applies right now: an open session first, then the daily goal.
+// A finished session still shows as "done" today, unless the daily goal is still open.
+function studyGoal() {
+  const st = S.study, t = today();
+  if (st.session && !st.session.completed) return { kind: "session", goal: st.session.goal * 60, done: st.session.sec, completed: false };
+  if (st.daily > 0) return { kind: "daily", goal: st.daily * 60, done: Math.min((S.log[t] || {}).sec || 0, st.daily * 60), completed: st.dailyDone === t };
+  if (st.session && st.session.d === t) return { kind: "session", goal: st.session.goal * 60, done: st.session.sec, completed: true };
+  return null;
+}
+function studyLeft() { const g = studyGoal(); return g && !g.completed ? Math.max(0, g.goal - g.done) : 0; }
+function studyTick() {
+  const st = S.study;
+  if (st.session && !st.session.completed) {
+    st.session.sec++;
+    if (st.session.sec >= st.session.goal * 60) completeStudy("session");
+  } else if (st.daily > 0 && st.dailyDone !== today() && ((S.log[today()] || {}).sec || 0) >= st.daily * 60) completeStudy("daily");
+}
+function completeStudy(kind) {
+  const st = S.study, goal = kind === "session" ? st.session.goal : st.daily;
+  if (kind === "session") { st.session.completed = true; st.session.d = today(); }
+  else st.dailyDone = today();
+  st.history.push({ d: today(), kind, goal, min: goal, done: true });
+  S.stats.studyDone++;
+  addCoins(25);
+  finishActivity();
+  sfx.win();
+  modal(`${unicornSVG({ cls: "", still: false }).replace('class="uni', 'style="width:180px" class="uni')}<h2>Study time done!</h2><p style="font-size:20px">You practiced for <b>${minutesText(goal)}</b>. Great work, ${esc(S.profile.name)}!</p><p class="price" style="font-size:22px;justify-content:center"><span class="coin"></span> +25 coins</p><p class="muted">You can keep riding, or take a break.</p>`, [{ label: "Yay!", cls: "gold" }]);
+}
+function paintStudy() {
+  const left = studyLeft(), running = tracking && inUse();
+  const pill = $("#studyPill");
+  if (pill) {
+    pill.hidden = !left;
+    pill.classList.toggle("paused", !running);
+    $("#studyPillT").textContent = running ? mmss(left) : `${mmss(left)} paused`;
+  }
+  const card = $("#studyLeft");
+  if (card && left) {
+    const g = studyGoal();
+    card.textContent = mmss(left);
+    $("#studyBar").style.width = Math.min(100, g.done / g.goal * 100) + "%";
+  }
+}
+function studyCardHTML() {
+  const g = studyGoal();
+  if (!g) return "";
+  if (g.completed) return `<div class="study done"><h2 style="color:var(--meadow-deep)">Study time done${g.kind === "daily" ? " for today" : ""}!</h2><p>You practiced for ${minutesText(Math.round(g.goal / 60))}. Extra riding still earns coins.</p></div>`;
+  const left = Math.max(0, g.goal - g.done);
+  return `<div class="study"><div class="row" style="justify-content:space-between"><h2>${ICON.clock} Study time</h2><span class="big"><span id="studyLeft">${mmss(left)}</span> left</span></div>
+    <div class="meter"><i id="studyBar" style="width:${Math.min(100, g.done / g.goal * 100)}%"></i></div>
+    <p class="note">Your goal is ${minutesText(Math.round(g.goal / 60))} of practice. The timer runs during Trail Rides and the other activities, and pauses in the shop or when you stop tapping.${S.study.lockShop ? " The Stable Shop opens when you're done." : ""}</p></div>`;
+}
 
 /* ============================== sound, speech, fx ============================== */
 let actx = null;
@@ -1297,7 +1381,8 @@ function go(name, arg) {
 }
 document.addEventListener("click", e => { const g = e.target.closest("[data-go]"); if (g) { sfx.tap(); go(g.dataset.go); } });
 const coinPill = () => `<span class="pill" title="Coins"><span class="coin"></span><span id="coinCount">${fmt(S.coins)}</span></span>`;
-const topbar = (title, back = "home") => `<header class="top"><button class="back" data-go="${back}">‹ Stable</button><h1>${title}</h1>${coinPill()}</header>`;
+const studyPill = () => `<span class="pill study-pill" id="studyPill" title="Study time left" ${studyLeft() ? "" : "hidden"}>${ICON.clock}<span id="studyPillT">${mmss(studyLeft())}</span></span>`;
+const topbar = (title, back = "home") => `<header class="top"><button class="back" data-go="${back}">‹ Stable</button><h1>${title}</h1>${studyPill()}${coinPill()}</header>`;
 const speakBtn = text => canSpeak() ? `<button class="btn small" data-speak="${esc(plain(text))}">${ICON.speak} Read it to me</button>` : "";
 document.addEventListener("click", e => { const b = e.target.closest("[data-speak]"); if (b) speak(b.dataset.speak); });
 
@@ -1317,7 +1402,8 @@ const BADGES = [
   ["facts100", "Fact Champion", "Answer 100 facts correctly", "blue", s => s.stats.facts >= 100],
   ["work5", "Story Solver", "Solve 5 Workshop word problems", "yellow", s => s.stats.workshop >= 5],
   ["hw1", "Homework Hero", "Use the Homework Helper", "green", s => s.stats.homework >= 1],
-  ["shop1", "Stylish Stable", "Buy something at the Stable Shop", "white", s => s.stats.bought >= 1]
+  ["shop1", "Stylish Stable", "Buy something at the Stable Shop", "white", s => s.stats.bought >= 1],
+  ["study5", "Study Star", "Finish study time 5 times", "tri", s => (s.stats.studyDone || 0) >= 5]
 ];
 function rosetteSVG(color) {
   const c = RIBBON[color] || color, tri = c === "tri";
@@ -1333,7 +1419,7 @@ function checkBadges() {
     }
   }
 }
-const REWARD_TYPES = { correct: "problems answered correctly", rides: "Trail Rides finished", days: "days of practice", lessons: "foal lessons taught" };
+const REWARD_TYPES = { correct: "problems answered correctly", rides: "Trail Rides finished", days: "days of practice", lessons: "foal lessons taught", studyDone: "study times finished" };
 const counter = type => S.stats[type] || 0;
 function rewardProgress(r) { return Math.max(0, Math.min(r.target, counter(r.type) - r.start)); }
 function checkRewards() {
@@ -1550,6 +1636,7 @@ SCREENS.home = () => {
   const active = S.rewards.find(r => r.status === "active") || S.rewards.find(r => r.status === "earned");
   app.innerHTML = `
   <header class="top"><h1 style="color:var(--meadow-deep)">Unicorn Academy</h1>${coinPill()}</header>
+  ${studyLeft() ? studyCardHTML() : ""}
   <div class="hero">
     <div class="stage" id="homeStage">${unicornSVG({ scene: S.look.scene, label: S.profile.uni })}<div class="bubble"><b>${esc(S.profile.uni)}:</b> ${pick(lines)}</div></div>
     <div class="stack">
@@ -1563,6 +1650,7 @@ SCREENS.home = () => {
       ${active ? `<div class="reward"><div class="row" style="justify-content:space-between"><b style="font-family:var(--display);font-size:19px">${active.status === "earned" ? "Reward earned!" : "Working toward"}: ${esc(active.title)}</b><span class="muted">${rewardProgress(active)} / ${active.target}</span></div><div class="meter gold"><i style="width:${rewardProgress(active) / active.target * 100}%"></i></div><span class="note">${active.status === "earned" ? "Show your grown-up!" : REWARD_TYPES[active.type]}</span></div>` : ""}
     </div>
   </div>
+  ${studyLeft() ? "" : studyCardHTML()}
   <div class="ride-cta">
     <div><h2>${rode ? "Ride again?" : "Today's Trail Ride"}</h2><p>${rode ? "You already rode today. Extra rides earn extra coins!" : "8 problems picked just for you. About 7 minutes."}</p></div>
     <button class="btn big" data-go="trail">${ICON.shoe} Start riding</button>
@@ -2431,6 +2519,16 @@ function itemPreview(it) {
 }
 let shopTab = "Coat", shopSel = null;
 SCREENS.shop = () => {
+  if (S.study.lockShop && studyLeft()) {
+    app.innerHTML = `${topbar("Stable Shop")}
+    <section class="card stack center" style="max-width:560px;margin:0 auto">
+      <div style="width:220px">${unicornSVG({ scene: S.look.scene })}</div>
+      <h2 style="font-size:30px">The shop opens after study time</h2>
+      <p style="font-size:20px">${esc(S.profile.uni)} is saving your coins. Practice for <b>${mmss(studyLeft())}</b> more and the shop opens!</p>
+      <button class="btn primary big" data-go="trail">${ICON.shoe} Go riding</button>
+    </section>`;
+    return;
+  }
   function panel() {
     const out = [];
     const it = SHOP.find(i => i.id === shopSel);
@@ -2568,11 +2666,64 @@ SCREENS.parent = () => {
   $("#pin").onkeydown = e => { if (e.key === "Enter") go2(); };
   setTimeout(() => $("#pin") && $("#pin").focus(), 50);
 };
+function timeReportHTML(days) {
+  const L = k => S.log[k] || {};
+  const appOf = l => Math.max(l.app || 0, l.sec || 0);  // older days only recorded practice time
+  const week = days.slice(7), prev = days.slice(0, 7), t = today();
+  const sum = (ks, f) => ks.reduce((a, k) => a + f(L(k)), 0);
+  const weekApp = sum(week, appOf), weekPr = sum(week, l => l.sec || 0), prevPr = sum(prev, l => l.sec || 0);
+  const activeDays = week.filter(k => (L(k).sec || 0) > 0).length;
+  const goal = S.study.daily * 60;
+  const rows = week.slice().reverse().map(k => {
+    const l = L(k), label = k === t ? "Today" : new Date(k + "T12:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+    const met = goal ? ((l.sec || 0) >= goal ? `<b style="color:var(--meadow-deep)">Yes</b>` : "No") : "—";
+    return `<tr><td>${label}</td><td>${l.sec ? mins(l.sec) : "—"}</td><td>${appOf(l) ? mins(appOf(l)) : "—"}</td><td>${l.p || 0}</td><td>${met}</td></tr>`;
+  }).join("");
+  return `<div class="kpis">
+      <div class="kpi"><b>${mins(L(t).sec || 0)}</b><span>practicing today</span></div>
+      <div class="kpi"><b>${mins(appOf(L(t)))}</b><span>in the app today</span></div>
+      <div class="kpi"><b>${mins(weekPr)}</b><span>practicing this week${prevPr ? ` (last week ${mins(prevPr)})` : ""}</span></div>
+      <div class="kpi"><b>${activeDays ? mins(weekPr / activeDays) : "—"}</b><span>average per practice day</span></div>
+    </div>
+    <div class="tblwrap" style="margin-top:12px"><table class="list"><tr><th>Day</th><th>Practicing</th><th>In the app</th><th>Problems</th><th>Daily goal met</th></tr>${rows}</table></div>
+    <p class="note" style="margin-top:8px"><b>Practicing</b> counts Trail Rides and the other activities. <b>In the app</b> also includes the shop, rosettes and home screen. Neither counts the Grown-ups area, time with the app in the background, or stretches of more than 2 minutes without a tap. In the app this week: ${mins(weekApp)}.</p>`;
+}
+function studySettingsHTML() {
+  const st = S.study, g = studyGoal(), sess = st.session;
+  const status = sess && !sess.completed
+    ? `<p><b>Study session running:</b> ${mmss(sess.sec)} of ${sess.goal}:00 done. <button class="btn small" id="endSess">End it now</button></p>`
+    : g && g.kind === "daily" ? `<p><b>Today:</b> ${mmss(g.done)} of ${st.daily}:00 done${g.completed ? " (goal met)" : ""}.</p>` : "";
+  const hist = st.history.slice(-8).reverse();
+  return `<p class="note">The study timer counts only practice time: Trail Rides, Number Reader, Area Model Builder, Teach the Foals, Fact Gallop, Story Workshop and Homework Helper. It pauses in the shop, on the home screen, and after 2 minutes without a tap. She sees the time left on her home screen and at the top of every activity. Finishing earns 25 coins.</p>
+    ${status}
+    <div class="toggle"><span>Daily study goal<br><span class="note">Every day, this much practice. Resets at midnight.</span></span>
+      <select class="input" id="dailyGoal" style="width:auto">${[0, 10, 15, 20, 25, 30, 45, 60].map(m => `<option value="${m}" ${st.daily === m ? "selected" : ""}>${m ? m + " minutes" : "Off"}</option>`).join("")}</select></div>
+    <div class="toggle"><span>Start a study session now<br><span class="note">For "you need to do 20 minutes of math right now". Counts on top of the daily goal.</span></span>
+      <span class="row">${[10, 15, 20, 30].map(m => `<button class="btn small" data-sess="${m}">${m} min</button>`).join("")}
+      <input class="input" id="sessMin" inputmode="numeric" maxlength="3" placeholder="Other" aria-label="Minutes" style="width:90px"><button class="btn small primary" id="sessGo">Start</button></span></div>
+    <div class="toggle"><span>Lock the Stable Shop until study time is done</span><button class="switch ${st.lockShop ? "on" : ""}" id="lockShop" aria-label="Lock the shop during study time"></button></div>
+    ${hist.length ? `<div class="tblwrap" style="margin-top:8px"><table class="list"><tr><th>Date</th><th>Type</th><th>Goal</th><th>Result</th></tr>${hist.map(h => `<tr><td>${h.d.slice(5)}</td><td>${h.kind === "daily" ? "Daily goal" : "Session"}</td><td>${h.goal} min</td><td>${h.done ? `<b style="color:var(--meadow-deep)">Finished</b>` : `Ended early at ${mmss(h.sec || 0)}`}</td></tr>`).join("")}</table></div>` : ""}`;
+}
+function bindStudySettings() {
+  const st = S.study;
+  $("#dailyGoal").onchange = e => { st.daily = +e.target.value; save(); parentDash(); };
+  $("#lockShop").onclick = e => { st.lockShop = !st.lockShop; e.currentTarget.classList.toggle("on", st.lockShop); save(); };
+  const start = m => {
+    if (!(m >= 1 && m <= 180)) { toast("Pick between 1 and 180 minutes."); return; }
+    if (st.session && !st.session.completed) st.history.push({ d: today(), kind: "session", goal: st.session.goal, sec: st.session.sec, done: false });
+    st.session = { goal: m, sec: 0, started: Date.now(), completed: false, d: today() };
+    save(); toast(`Study session started: ${minutesText(m)}.`); parentDash();
+  };
+  $$("[data-sess]").forEach(b => b.onclick = () => start(+b.dataset.sess));
+  $("#sessGo").onclick = () => start(parseInt($("#sessMin").value, 10));
+  const end = $("#endSess");
+  if (end) end.onclick = () => { st.history.push({ d: today(), kind: "session", goal: st.session.goal, sec: st.session.sec, done: false }); st.session = null; save(); parentDash(); };
+}
 function parentDash() {
   const days = [];
   for (let i = 13; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i); days.push(dayKey(d)); }
   const week = days.slice(7).map(k => S.log[k] || {});
-  const wp = week.reduce((a, l) => a + (l.p || 0), 0), wc = week.reduce((a, l) => a + (l.c || 0), 0), wm = Math.round(week.reduce((a, l) => a + (l.sec || 0), 0) / 60);
+  const wp = week.reduce((a, l) => a + (l.p || 0), 0), wc = week.reduce((a, l) => a + (l.c || 0), 0);
   const status = m => m < 0.35 ? ["Needs work", "var(--warn)"] : m < 0.6 ? ["Growing", "var(--gold-deep)"] : m < 0.8 ? ["Getting strong", "var(--meadow)"] : ["Strong", "var(--meadow-deep)"];
   const weakFacts = Object.entries(S.facts).filter(([, f]) => f.n >= 2 && f.c / f.n < 0.7).sort((a, b) => a[1].c / a[1].n - b[1].c / b[1].n).slice(0, 10).map(([k]) => k.replace("x", " × ").replace("/", " ÷ "));
   const lastHw = S.homework[S.homework.length - 1];
@@ -2581,9 +2732,17 @@ function parentDash() {
     <div class="kpis">
       <div class="kpi"><b>${wp}</b><span>problems this week</span></div>
       <div class="kpi"><b>${wp ? Math.round(wc / wp * 100) + "%" : "—"}</b><span>correct this week</span></div>
-      <div class="kpi"><b>${wm}</b><span>minutes practiced this week</span></div>
+      <div class="kpi"><b>${S.stats.studyDone || 0}</b><span>study times finished</span></div>
       <div class="kpi"><b>${liveStreak()}</b><span>day streak (best ${S.bestStreak})</span></div>
     </div>
+  </section>
+  <section class="card sect">
+    <h2>Time on the app</h2>
+    ${timeReportHTML(days)}
+  </section>
+  <section class="card sect">
+    <h2>Study time</h2>
+    ${studySettingsHTML()}
   </section>
   <section class="card sect">
     <h2>Last 14 days</h2>
@@ -2652,6 +2811,7 @@ function parentDash() {
   $("#planWhere").onchange = e => { S.plan.where = e.target.value.trim(); save(); };
   $("#planNote").onchange = e => { S.plan.note = e.target.value.trim(); save(); };
   $$("[data-ps]").forEach(b => b.onclick = () => { const [id, st] = b.dataset.ps.split(":"); S.plan.status[id] = st; save(); b.parentNode.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); });
+  bindStudySettings();
   $$("[data-set]").forEach(b => b.onclick = () => { const k = b.dataset.set; S.settings[k] = !S.settings[k]; b.classList.toggle("on", S.settings[k]); save(); });
   $("#rwAdd").onclick = () => {
     const title = $("#rwTitle").value.trim(), target = parseInt($("#rwN").value, 10), type = $("#rwType").value;
